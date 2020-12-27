@@ -1,0 +1,57 @@
+﻿@using BlazorApp.Web.Data
+@using BlazorApp.Web.Models
+@inject IRepository<Company> companyRepo
+@inject IJSRuntime jsRuntime
+
+<div class="modal" tabindex="-1" role="dialog" id="companyModal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@CustomHeader</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="@CompanyObject" OnValidSubmit="@HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label for="name">Название</label>
+                        <input type="hidden" @bind-value="@CompanyObject.Id" />
+                        <InputText id="name" class="form-control" @bind-Value="@CompanyObject.CompanyName" />
+                        <ValidationMessage For="@(() => CompanyObject.CompanyName)" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Company CompanyObject { get; set; }
+    [Parameter]
+    public Action DataChanged { get; set; }
+    [Parameter]
+    public RenderFragment CustomHeader { get; set; }
+
+    private async Task CloseCompanyModal()
+    {
+        await jsRuntime.InvokeAsync<object>("CloseModal", "companyModal");
+    }
+    private async void HandleValidSubmit()
+    {
+        if (CompanyObject.Id == 0)
+        {
+            await companyRepo.AddAsync(CompanyObject);
+        }
+        else
+        {
+            await companyRepo.UpdateAsync(CompanyObject);
+        }
+        await CloseCompanyModal();
+        DataChanged?.Invoke();
+    }
+}

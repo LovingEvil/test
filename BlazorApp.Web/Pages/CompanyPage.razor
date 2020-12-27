@@ -1,0 +1,109 @@
+@page "/companys"
+@using BlazorApp.Web.Data
+@using BlazorApp.Web.Models
+@inject IRepository<Company> companyRepo
+@inject IJSRuntime jsRuntime
+<h1>Blazor!</h1>
+@if (companyList == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-sm table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>CompId</th>
+                <th>Компания</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var company in companyList)
+            {
+                <tr>
+                    <td>@company.Id</td>
+                    <td>@company.CompanyName</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="@(e=>PrepareForEdit(@company))" data-toggle="modal"
+                            data-target="#companyModal" value="Edit">Edit</button>
+                        <button class="btn btn-danger" @onclick="@(e=>PrepareForDelete(@company))" data-toggle="modal"
+                            data-target="#confirmDeleteModal" value="Delete">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div>
+    <Pager PageIndex=@paginatedList.PageIndex TotalPages=@paginatedList.TotalPages OnClick="PageIndexChanged"
+        HasNextPage=@paginatedList.HasNextPage HasPreviousPage=@paginatedList.HasPreviousPage>
+    </Pager>
+
+    <div class="float-right">
+        <input type="button" data-toggle="modal" data-target="#companyModal" class="btn btn-primary" value="Add Сompany"
+            @onclick="(() => InitializeCompanyObject())" />
+    </div>
+</div>
+<ConfirmDialog OnClick="@DeleteCompany" />
+<CompanyDetail CompanyObject=companyObject DataChanged="@DataChanged">
+    <CustomHeader>@customHeader</CustomHeader>
+</CompanyDetail>
+
+@code{
+    Company companyObject = new Company();
+    IEnumerable<Company> companyList;
+    PaginatedList<Company> paginatedList = new PaginatedList<Company>();
+    string customHeader = string.Empty;
+    int? pageNumber = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetCompanys();
+    }
+    private void InitializeCompanyObject()
+    {
+        companyObject = new Company();
+        customHeader = "Добавление company";
+    }
+
+    private async void DataChanged()
+    {
+        await GetCompanys();
+        StateHasChanged();
+    }
+    private async Task GetCompanys()
+    {
+        paginatedList = await companyRepo.GetPaged(pageNumber);
+        companyList = paginatedList.Items;
+    }
+    private async Task DeleteCompany()
+    {
+        companyObject = await companyRepo.DeleteAsync(companyObject.Id);
+        await jsRuntime.InvokeAsync<object>("CloseModal", "confirmDeleteModal");
+        await GetCompanys();
+        companyObject = new Company();
+    }
+    private void PrepareForEdit(Company company)
+    {
+        customHeader = "Правка компании";
+        companyObject = company;
+    }
+    private void PrepareForDelete(Company company)
+    {
+        companyObject = company;
+    }
+
+    public async void PageIndexChanged(int newPageNumber)
+    {
+        if (newPageNumber < 1 || newPageNumber > paginatedList.TotalPages)
+        {
+            return;
+        }
+        pageNumber = newPageNumber;
+        paginatedList = await companyRepo.GetPaged(pageNumber);
+        companyList = paginatedList.Items;
+        StateHasChanged();
+    }
+}

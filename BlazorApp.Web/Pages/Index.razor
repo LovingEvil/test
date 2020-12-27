@@ -1,0 +1,125 @@
+@page "/"
+@using BlazorApp.Web.Data
+@using BlazorApp.Web.Models
+@inject IRepository<Employee> employeeRepo
+@inject IRepository<Company> companyRepo
+@inject IJSRuntime jsRuntime
+<h1>Blazor!</h1>
+
+@if (employeeList == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-sm table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>EmplId</th>
+                <th>Имя</th>
+                <th>Фамилия</th>
+                <th>Отчество</th>
+                <th>Телефон</th>
+                <th>Компания</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var empl in employeeList)
+            {
+                <tr>
+                    <td>@empl.Id</td>
+                    <td>@empl.FirstName</td>
+                    <td>@empl.LastName</td>
+                    <td>@empl.PatronymicName</td>
+                    <td>@empl.PhoneNumber</td>
+                    <td>@empl.Company.CompanyName</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="@(e=>PrepareForEdit(@empl))" data-toggle="modal"
+                            data-target="#employeeModal" value="Edit">Edit</button>
+                        <button class="btn btn-danger" @onclick="@(e=>PrepareForDelete(@empl))" data-toggle="modal"
+                            data-target="#confirmDeleteModal" value="Delete">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div>
+    <Pager PageIndex=@paginatedList.PageIndex TotalPages=@paginatedList.TotalPages OnClick="PageIndexChanged"
+        HasNextPage=@paginatedList.HasNextPage HasPreviousPage=@paginatedList.HasPreviousPage>
+    </Pager>
+
+    <div class="float-right">
+        <input type="button" data-toggle="modal" data-target="#employeeModal" class="btn btn-primary"
+            value="Add Employee" @onclick="(() => InitializeEmployeeObject())" />
+    </div>
+</div>
+<ConfirmDialog OnClick="@DeleteEmployee" />
+<EmployeeDetail EmployeeObject=employeeObject CompanyList=companyList DataChanged="@DataChanged">
+    <CustomHeader>@customHeader</CustomHeader>
+</EmployeeDetail>
+
+@code{
+    Employee employeeObject = new Employee();
+    IEnumerable<Employee> employeeList;
+    PaginatedList<Employee> paginatedList = new PaginatedList<Employee>();
+    List<Company> companyList = new List<Company>();
+    string customHeader = string.Empty;
+    int? pageNumber = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetEmployees();
+        GetCompanyList();
+    }
+    private void GetCompanyList()
+    {
+        companyList = companyRepo.GetAll().ToList();
+    }
+    private void InitializeEmployeeObject()
+    {
+        employeeObject = new Employee();
+        customHeader = "Добавление сотрудника";
+    }
+
+    private async void DataChanged()
+    {
+        await GetEmployees();
+        StateHasChanged();
+    }
+    private async Task GetEmployees()
+    {
+        paginatedList = await employeeRepo.GetPaged(pageNumber, new string[] { "Company" });
+        employeeList = paginatedList.Items;
+    }
+    private async Task DeleteEmployee()
+    {
+        employeeObject = await employeeRepo.DeleteAsync(employeeObject.Id);
+        await jsRuntime.InvokeAsync<object>("CloseModal", "confirmDeleteModal");
+        await GetEmployees();
+        employeeObject = new Employee();
+    }
+    private void PrepareForEdit(Employee employee)
+    {
+        customHeader = "Правка сотрудника";
+        employeeObject = employee;
+    }
+    private void PrepareForDelete(Employee employee)
+    {
+        employeeObject = employee;
+    }
+
+    public async void PageIndexChanged(int newPageNumber)
+    {
+        if (newPageNumber < 1 || newPageNumber > paginatedList.TotalPages)
+        {
+            return;
+        }
+        pageNumber = newPageNumber;
+        paginatedList = await employeeRepo.GetPaged(pageNumber, new string[] { "Company" });
+        employeeList = paginatedList.Items;
+        StateHasChanged();
+    }
+}
